@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project 0: Becoming Friends with Your Camera</title>
+<link rel="stylesheet" href="../assets/css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">CS 180 &middot; Project 0</p>
+  <h1>Becoming Friends with Your Camera</h1>
+  <p class="subtitle">Exploring perspective, focal length, and the center of projection through selfies, buildings, and a dolly zoom.</p>
+  <p class="meta">David Wu &middot; Due <strong>Tuesday, September 1, 2026</strong></p>
+  <nav class="toc">
+    <a href="#overview">Overview</a>
+    <a href="#part1">Part 1 &mdash; Selfie Comparison</a>
+    <a href="#part2">Part 2 &mdash; Architectural Perspective</a>
+    <a href="#part3">Part 3 &mdash; Dolly Zoom</a>
+  </nav>
+</header>
+
+<main>
+
+  <section class="part" id="overview">
+    <p class="part-label">Overview</p>
+    <p class="desc">
+      This project is an introduction to how a camera actually sees the world &mdash; how
+      distance, zoom, and the center of projection change the shape of a photograph.
+    </p>
+  </section>
+
+  <section class="part" id="part1">
+    <p class="part-label">Part 1</p>
+    <h2>Selfie: The Wrong Way vs. The Right Way</h2>
+    <p class="desc">
+      Two portraits of the same face, same size in frame: one taken close up, one taken from
+      farther away and zoomed in to match.
+    </p>
+    <div class="image-row">
+      <figure>
+        <img class="filled" src="images/close-up-selfie.jpeg" alt="Close-up portrait taken without zoom">
+        <figcaption>Close up (23mm)</figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/zoomed-selfie.jpeg" alt="Portrait taken from farther away with zoom">
+        <figcaption>Farther away (30mm)</figcaption>
+      </figure>
+    </div>
+    <div class="answer-box">
+      <p class="prompt">Why does this happen?</p>
+      <p class="fill">
+        In the close-up photo, the camera is much closer to my face, so features nearer to the
+        lens, such as my nose, appear larger relative to features farther away.
+        This makes the face look more distorted. When I move the camera farther away, the
+        differences in distance between these features become small relative to the total camera
+        distance, so their proportions look more even and the face appears flatter. Zooming in
+        only makes my face fill the frame again; the change in perspective comes from moving the
+        camera.
+      </p>
+    </div>
+  </section>
+
+  <section class="part" id="part2">
+    <p class="part-label">Part 2</p>
+    <h2>Architectural Perspective Compression</h2>
+    <p class="desc">
+      A building facade photographed two ways: zoomed in from far away and up close with no
+      zoom while keeping the building roughly the same size in frame.
+    </p>
+    <div class="image-row">
+      <figure>
+        <img class="filled" src="images/zoomed-building.jpeg" alt="Building photo taken from a distance with zoom">
+        <figcaption>Building photo taken from a distance with zoom.</figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/close-up-building.jpeg" alt="Close-up building photo taken without zoom">
+        <figcaption>Close-up building photo taken without zoom.</figcaption>
+      </figure>
+    </div>
+    <div class="answer-box">
+      <p class="prompt">Why does the first image look flattened?</p>
+      <p class="fill">
+        The first image was taken from farther away, so the distances from the camera to the near
+        and far parts of the building are relatively similar. As a result, those parts project to
+        more similar sizes in the image, making the depth of the scene look compressed. In the
+        close-up photo, the relative distance difference is larger, so nearby parts appear bigger.
+        The zoom changes the framing, while the camera position creates the flattened perspective.
+      </p>
+    </div>
+  </section>
+
+  <section class="part" id="part3">
+    <p class="part-label">Part 3</p>
+    <h2>The Dolly Zoom</h2>
+    <p class="desc">
+      A sequence of stills, walking the camera backward while zooming in, keeping the subject a
+      constant size and combined into an animated GIF. Made famous by Hitchcock's <em>Vertigo</em>.
+    </p>
+    <div class="gif-frame">
+      <img class="filled" src="images/dolly_zoom_9834_9839_forward.gif" alt="Forward dolly zoom sequence">
+      <figcaption>6 photos taken while walking the camera backward and zooming in.</figcaption>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>CS 180 &middot; Intro to Computer Vision and Computational Photography &middot; Fall 2026</p>
+  <p><a href="../index.html">&larr; Back to projects</a></p>
+</footer>
+
+</body>
+</html>
