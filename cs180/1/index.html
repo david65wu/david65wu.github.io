@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project 1: Colorizing the Prokudin-Gorskii Collection</title>
+<link rel="stylesheet" href="../../assets/css/style.css">
+</head>
+<body>
+
+<header class="hero">
+  <p class="eyebrow">CS 180 &middot; Project 1</p>
+  <h1>Colorizing the Prokudin-Gorskii Photo Collection</h1>
+  <p class="subtitle">
+    Sergei Prokudin-Gorskii photographed the Russian Empire in color decades before color film
+    existed, by exposing three black-and-white glass plates of the same scene through red, green,
+    and blue filters. Reconstructing the color photo means digitally re-stacking those three
+    exposures which first have to be aligned since the plates rarely line up on their own.
+  </p>
+  <p class="meta">David Wu</p>
+  <nav class="toc">
+    <a href="#overview">Overview</a>
+    <a href="#single-scale">Single-Scale Alignment</a>
+    <a href="#multi-scale">Multi-Scale Pyramid</a>
+    <a href="#extras">Additional Examples</a>
+    <a href="#failures">Diagnosing a Failure</a>
+  </nav>
+</header>
+
+<main>
+
+  <section class="part" id="overview">
+    <p class="part-label">Overview</p>
+    <p class="desc">
+      Each glass plate negative is a single tall grayscale image containing three stacked
+      exposures, filtered blue, green, and red from top to bottom. Splitting each negative into
+      thirds gives the B, G, and R channels; the pipeline then searches for the (x, y)
+      displacement that best lines up the G and R channels with the B channel, using normalized
+      cross-correlation (NCC) as the similarity score over a cropped interior region (borders are
+      excluded so plate edges and scratches don't bias the search).
+    </p>
+  </section>
+
+  <section class="part" id="single-scale">
+    <p class="part-label">Part 1</p>
+    <h2>Single-Scale Alignment</h2>
+    <p class="desc">
+      On the low-resolution JPEGs, an exhaustive search over every integer displacement in
+      [&minus;15, 15]&sup2; is cheap enough to run directly (no pyramid needed):
+    </p>
+    <ol class="steps">
+      <li>Split the plate into three equal-height strips, filtered blue, green, and red from
+        top to bottom.</li>
+      <li>For green and red, try every integer shift in [&minus;15, 15]&sup2; relative to
+        blue.</li>
+      <li>Score each candidate by NCC over the interior only. A 10% border cropped from
+        each side so plate edges and scratches don't bias the result.</li>
+      <li>Keep the best-scoring shift for each channel.</li>
+      <li>Roll green and red by their best shifts and stack with blue into the RGB composite.</li>
+    </ol>
+    <div class="image-row">
+      <figure>
+        <img class="filled" src="images/cathedral_single_ncc.jpg" alt="Cathedral, aligned">
+        <figcaption>
+          Cathedral
+          <span class="offsets"><span class="swatch green"></span>G (5, 2)&nbsp; <span class="swatch red"></span>R (12, 3)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/monastery_single_ncc.jpg" alt="Monastery, aligned">
+        <figcaption>
+          Monastery
+          <span class="offsets"><span class="swatch green"></span>G (&minus;3, 2)&nbsp; <span class="swatch red"></span>R (3, 2)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/tobolsk_single_ncc.jpg" alt="Tobolsk, aligned">
+        <figcaption>
+          Tobolsk
+          <span class="offsets"><span class="swatch green"></span>G (3, 3)&nbsp; <span class="swatch red"></span>R (6, 3)</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="part" id="multi-scale">
+    <p class="part-label">Part 2</p>
+    <h2>Multi-Scale Pyramid Alignment</h2>
+    <p class="desc">
+      The full-resolution scans are far too large and their true displacements often far
+      too big for a single exhaustive search over every possible shift. Instead, each
+      channel is aligned coarse-to-fine through an image pyramid:
+    </p>
+    <ol class="steps">
+      <li>Build a pyramid for each channel by repeatedly downsampling 2&times; (simple box
+        averaging) until the shorter side is &le; 400px.</li>
+      <li>Score each candidate shift over the interior only (a 10% border cropped from
+        each side) so plate edges and scratches don't bias the result, just like the
+        single-scale search.</li>
+      <li>At the coarsest level, exhaustively score every integer shift in [&minus;15,
+        15]&sup2; and keep the best one.</li>
+      <li>Move one level finer: double the previous shift to match the new resolution, then
+        refine it with a small &plusmn;3px search around that estimate.</li>
+      <li>Repeat the refine step at each successively finer level, up through full resolution.</li>
+      <li>Apply the final shift to the original full-resolution channel and composite with the
+        reference channel.</li>
+    </ol>
+    <p class="desc">
+      Because only the coarsest, smallest level ever does a wide search, this keeps every image
+      under a minute to align. All 14 provided
+      images below were aligned this way and are shown with their computed (dy, dx) offsets.
+    </p>
+    <div class="answer-box">
+      <p class="prompt">Does the scoring metric matter: NCC vs. L2?</p>
+      <p class="fill">
+        Each candidate shift is scored over two cropped interior patches, <em>a</em> (the channel
+        being tested, already rolled by the candidate shift) and <em>b</em> (the reference
+        channel), each of length <em>n</em> pixels:
+      </p>
+      <div class="formula">
+        <span>NCC(a, b) =</span>
+        <span class="frac">
+          <span class="num">&Sigma;<sub>i</sub> (a<sub>i</sub> &minus; <span class="bar">a</span>)(b<sub>i</sub> &minus; <span class="bar">b</span>)</span>
+          <span class="den">sqrt(&Sigma;<sub>i</sub>(a<sub>i</sub> &minus; <span class="bar">a</span>)&sup2;) &middot; sqrt(&Sigma;<sub>i</sub>(b<sub>i</sub> &minus; <span class="bar">b</span>)&sup2;)</span>
+        </span>
+      </div>
+      <div class="formula">
+        <span>L2(a, b) = &minus;sqrt(&Sigma;<sub>i</sub> (a<sub>i</sub> &minus; b<sub>i</sub>)&sup2;)</span>
+      </div>
+      <p class="fill">
+        where <span class="bar">a</span> and <span class="bar">b</span> are each patch's mean
+        pixel value, and higher is a better match for both (NCC tops out at 1; L2 tops out at 0).
+        NCC's mean-subtraction and normalization make it invariant to a brightness or contrast
+        difference between channels; L2 compares raw intensities directly and has no such
+        protection. Run across all 17 images
+        with both metrics, they agree exactly on 13 and differ by at most 1 pixel on 3 more.
+        For most of this dataset the choice barely matters. The exception is
+        <code>lesnaya_doroga.tif</code>: NCC finds the correct green shift <strong>(37,
+        &minus;32)</strong>, while L2 lands on <strong>(&minus;246, 166)</strong> and produces a
+        scrambled composite. The forest scene has a strong brightness difference between channels
+        (bright canopy, dark trunks and shadow), and L2's unnormalized distance gets dominated by
+        that brightness gap instead of the underlying structure which is exactly the failure mode
+        NCC's normalization exists to prevent. NCC is used as the default metric throughout this
+        project for that reason.
+      </p>
+      <div class="image-row">
+        <figure>
+          <img class="filled" src="images/lesnaya_doroga_multi_ncc.jpg" alt="Forest road, aligned with NCC">
+          <figcaption>
+            NCC &mdash; correct
+            <span class="offsets"><span class="swatch green"></span>G (37, &minus;32)&nbsp; <span class="swatch red"></span>R (97, 7)</span>
+          </figcaption>
+        </figure>
+        <figure>
+          <img class="filled" src="images/lesnaya_doroga_multi_l2.jpg" alt="Forest road, misaligned with L2">
+          <figcaption>
+            L2 &mdash; scrambled
+            <span class="offsets"><span class="swatch green"></span>G (&minus;246, 166)&nbsp; <span class="swatch red"></span>R (&minus;223, 10)</span>
+          </figcaption>
+        </figure>
+      </div>
+    </div>
+    <div class="image-grid">
+      <figure>
+        <img class="filled" src="images/cathedral_multi_ncc.jpg" alt="Cathedral, aligned">
+        <figcaption>Cathedral
+          <span class="offsets"><span class="swatch green"></span>G (5, 2)&nbsp; <span class="swatch red"></span>R (12, 3)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/monastery_multi_ncc.jpg" alt="Monastery, aligned">
+        <figcaption>Monastery
+          <span class="offsets"><span class="swatch green"></span>G (&minus;3, 2)&nbsp; <span class="swatch red"></span>R (3, 2)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/tobolsk_multi_ncc.jpg" alt="Tobolsk, aligned">
+        <figcaption>Tobolsk
+          <span class="offsets"><span class="swatch green"></span>G (3, 2)&nbsp; <span class="swatch red"></span>R (6, 3)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/church_multi_ncc.jpg" alt="Church, aligned">
+        <figcaption>Church
+          <span class="offsets"><span class="swatch green"></span>G (25, 4)&nbsp; <span class="swatch red"></span>R (58, &minus;4)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/harvesters_multi_ncc.jpg" alt="Harvesters, aligned">
+        <figcaption>Harvesters
+          <span class="offsets"><span class="swatch green"></span>G (60, 17)&nbsp; <span class="swatch red"></span>R (124, 13)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/icon_multi_ncc.jpg" alt="Icon, aligned">
+        <figcaption>Icon
+          <span class="offsets"><span class="swatch green"></span>G (41, 17)&nbsp; <span class="swatch red"></span>R (89, 23)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/ilemselga_multi_ncc.jpg" alt="Ilemselga, aligned">
+        <figcaption>Ilemselga
+          <span class="offsets"><span class="swatch green"></span>G (40, 7)&nbsp; <span class="swatch red"></span>R (130, 11)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/melons_multi_ncc.jpg" alt="Melons, aligned">
+        <figcaption>Melons
+          <span class="offsets"><span class="swatch green"></span>G (82, 11)&nbsp; <span class="swatch red"></span>R (178, 13)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/religous_painting_multi_ncc.jpg" alt="Religious painting, aligned">
+        <figcaption>Religious Painting
+          <span class="offsets"><span class="swatch green"></span>G (28, 3)&nbsp; <span class="swatch red"></span>R (68, 7)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/self_portrait_multi_ncc.jpg" alt="Self-portrait, aligned">
+        <figcaption>Self-Portrait
+          <span class="offsets"><span class="swatch green"></span>G (79, 29)&nbsp; <span class="swatch red"></span>R (176, 37)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/siren_multi_ncc.jpg" alt="Siren, aligned">
+        <figcaption>Siren
+          <span class="offsets"><span class="swatch green"></span>G (49, &minus;6)&nbsp; <span class="swatch red"></span>R (96, &minus;25)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/three_generations_multi_ncc.jpg" alt="Three generations, aligned">
+        <figcaption>Three Generations
+          <span class="offsets"><span class="swatch green"></span>G (53, 14)&nbsp; <span class="swatch red"></span>R (112, 11)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/wharf_multi_ncc.jpg" alt="Wharf, aligned">
+        <figcaption>Wharf
+          <span class="offsets"><span class="swatch green"></span>G (15, &minus;7)&nbsp; <span class="swatch red"></span>R (83, &minus;16)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/emir_multi_ncc.jpg" alt="Emir, aligned">
+        <figcaption>Emir &mdash; see <a href="#failures">note</a>
+          <span class="offsets">Aligned to green: <span class="swatch blue"></span>B (&minus;49, &minus;24)&nbsp; <span class="swatch red"></span>R (57, 17)</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="part" id="extras">
+    <p class="part-label">Part 3</p>
+    <h2>Additional Examples</h2>
+    <p class="desc">
+      Three more glass-negative scans from the Prokudin-Gorskii collection at the
+      <a href="https://www.loc.gov/collections/prokudin-gorskii/" target="_blank" rel="noopener">Library of Congress</a>,
+      run through the same multi-scale pipeline with no changes.
+    </p>
+    <div class="image-grid">
+      <figure>
+        <img class="filled" src="images/lesnaya_doroga_multi_ncc.jpg" alt="Forest road, aligned">
+        <figcaption>Forest Road (&laquo;&Lambda;&#1077;&#1089;&#1085;&#1072;&#1103; &#1076;&#1086;&#1088;&#1086;&#1075;&#1072;&raquo;)
+          <span class="offsets"><span class="swatch green"></span>G (37, &minus;32)&nbsp; <span class="swatch red"></span>R (97, 7)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/na_dunae_multi_ncc.jpg" alt="On the Danube, aligned">
+        <figcaption>On the Danube (&laquo;&#1053;&#1072; &#1044;&#1091;&#1085;&#1072;&#1077;&raquo;)
+          <span class="offsets"><span class="swatch green"></span>G (33, 51)&nbsp; <span class="swatch red"></span>R (85, 101)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/zakat_multi_ncc.jpg" alt="Sunset, aligned">
+        <figcaption>Sunset (&laquo;&#1047;&#1072;&#1082;&#1072;&#1090;&raquo;)
+          <span class="offsets"><span class="swatch green"></span>G (75, &minus;41)&nbsp; <span class="swatch red"></span>R (114, &minus;68)</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="part" id="failures">
+    <p class="part-label">Part 4</p>
+    <h2>Diagnosing and Fixing a Failure: Emir</h2>
+    <p class="desc">
+      Aligning green and red directly to blue (the default for every other image) leaves emir
+      with a badly misaligned red channel that is off by over 200 pixels horizontally, producing a
+      visible red ghost around the seated figure and his patterned robe.
+    </p>
+    <div class="image-row">
+      <figure>
+        <img class="filled" src="images/emir_before_ncc.jpg" alt="Emir, misaligned red channel">
+        <figcaption>
+          Blue as reference &mdash; red-channel ghosting
+          <span class="offsets"><span class="swatch green"></span>G (49, 24)&nbsp; <span class="swatch red"></span>R (141, &minus;205)</span>
+        </figcaption>
+      </figure>
+      <figure>
+        <img class="filled" src="images/emir_multi_ncc.jpg" alt="Emir, correctly aligned">
+        <figcaption>
+          Green as reference &mdash; fixed
+          <span class="offsets"><span class="swatch blue"></span>B (&minus;49, &minus;24)&nbsp; <span class="swatch red"></span>R (57, 17)</span>
+        </figcaption>
+      </figure>
+    </div>
+    <div class="answer-box">
+      <p class="prompt">Why does it fail, and why does swapping the reference channel fix it?</p>
+      <p class="fill">
+        The robe's repeating floral pattern fools NCC when red is compared directly to blue: at
+        the coarse pyramid level, several wrong alignments of the pattern score just as well as
+        the correct one, and once a wrong match is picked, the finer levels can only nudge it by a
+        few pixels, which does not fix it. Measuring NCC at the true alignment confirms why: red and
+        blue only score <strong>0.27</strong> against each other, versus <strong>0.71</strong>
+        (green&ndash;blue) and <strong>0.76</strong> (red&ndash;green). Red and blue are
+        genuinely the least alike pair here, likely because the robe's saturated colors reflect
+        very differently under those two filters. Aligning through green instead sidesteps the bad
+        pairing entirely. Every other image aligns to blue by default; emir.tif is the one
+        exception.
+      </p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>CS 180 &middot; Intro to Computer Vision and Computational Photography &middot; Fall 2026</p>
+  <p><a href="../index.html">&larr; Back to CS 180 projects</a></p>
+</footer>
+
+<script src="../../assets/js/lightbox.js"></script>
+</body>
+</html>
